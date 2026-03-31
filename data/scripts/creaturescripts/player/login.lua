@@ -134,7 +134,6 @@ function playerLoginGlobal.onLogin(player)
 	local playerId = player:getId()
 	_G.NextUseStaminaTime[playerId] = 1
 	_G.NextUseXpStamina[playerId] = 1
-	_G.NextUseConcoctionTime[playerId] = 1
 	DailyReward.init(playerId)
 
 	local stats = player:inBossFight()

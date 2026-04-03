@@ -1144,31 +1144,32 @@ void ProtocolGame::parsePacketFromDispatcher(NetworkMessage &msg, uint8_t recvby
 			parseAutoWalk(msg);
 			break;
 		case 0x65:
-			g_game().playerMove(player->getID(), DIRECTION_NORTH);
+			g_game().playerContinuousMove(player->getID(), DIRECTION_NORTH);
 			break;
 		case 0x66:
-			g_game().playerMove(player->getID(), DIRECTION_EAST);
+			g_game().playerContinuousMove(player->getID(), DIRECTION_EAST);
 			break;
 		case 0x67:
-			g_game().playerMove(player->getID(), DIRECTION_SOUTH);
+			g_game().playerContinuousMove(player->getID(), DIRECTION_SOUTH);
 			break;
 		case 0x68:
-			g_game().playerMove(player->getID(), DIRECTION_WEST);
+			g_game().playerContinuousMove(player->getID(), DIRECTION_WEST);
 			break;
 		case 0x69:
+			g_game().playerStopContinuousMove(player->getID());
 			g_game().playerStopAutoWalk(player->getID());
 			break;
 		case 0x6A:
-			g_game().playerMove(player->getID(), DIRECTION_NORTHEAST);
+			g_game().playerContinuousMove(player->getID(), DIRECTION_NORTHEAST);
 			break;
 		case 0x6B:
-			g_game().playerMove(player->getID(), DIRECTION_SOUTHEAST);
+			g_game().playerContinuousMove(player->getID(), DIRECTION_SOUTHEAST);
 			break;
 		case 0x6C:
-			g_game().playerMove(player->getID(), DIRECTION_SOUTHWEST);
+			g_game().playerContinuousMove(player->getID(), DIRECTION_SOUTHWEST);
 			break;
 		case 0x6D:
-			g_game().playerMove(player->getID(), DIRECTION_NORTHWEST);
+			g_game().playerContinuousMove(player->getID(), DIRECTION_NORTHWEST);
 			break;
 		case 0x6F:
 			g_game().playerTurn(player->getID(), DIRECTION_NORTH);
@@ -10000,6 +10001,20 @@ void ProtocolGame::sendPlayerTyping(const std::shared_ptr<Creature> &creature, u
 	msg.addByte(0x38);
 	msg.add<uint32_t>(creature->getID());
 	msg.addByte(typing);
+	writeToOutputBuffer(msg);
+}
+
+void ProtocolGame::sendCreatureWorldPosition(const std::shared_ptr<Creature> &creature) {
+	if (!isOTCR || !creature) {
+		return;
+	}
+
+	const auto &worldPos = creature->getWorldPosition();
+	NetworkMessage msg;
+	msg.addByte(0x39);
+	msg.add<uint32_t>(creature->getID());
+	msg.addByte(worldPos.getSubTileX());
+	msg.addByte(worldPos.getSubTileY());
 	writeToOutputBuffer(msg);
 }
 

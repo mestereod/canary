@@ -139,7 +139,7 @@ int32_t Weapon::playerWeaponCheck(const std::shared_ptr<Player> &player, const s
 		return 0;
 	}
 
-	if (std::max<uint32_t>(Position::getDistanceX(playerPos, targetPos), Position::getDistanceY(playerPos, targetPos)) > shootRange) {
+	if (WorldPosition::getChebyshevDistance(player->getWorldPosition(), target->getWorldPosition()) > static_cast<float>(shootRange) + 0.5f) {
 		return 0;
 	}
 
@@ -216,7 +216,8 @@ CombatDamage Weapon::getCombatDamage(CombatDamage combat, const std::shared_ptr<
 }
 
 bool Weapon::useFist(const std::shared_ptr<Player> &player, const std::shared_ptr<Creature> &target) {
-	if (!Position::areInRange<1, 1>(player->getPosition(), target->getPosition())) {
+	if (player->getPosition().z != target->getPosition().z ||
+		WorldPosition::getChebyshevDistance(player->getWorldPosition(), target->getWorldPosition()) > 1.5f) {
 		return false;
 	}
 
@@ -701,10 +702,10 @@ bool WeaponDistance::useWeapon(const std::shared_ptr<Player> &player, const std:
 	}
 
 	bool perfectShot = false;
-	const Position &playerPos = player->getPosition();
-	const Position &targetPos = target->getPosition();
-	const int32_t distanceX = Position::getDistanceX(targetPos, playerPos);
-	const int32_t distanceY = Position::getDistanceY(targetPos, playerPos);
+	const WorldPosition &playerWorldPos = player->getWorldPosition();
+	const WorldPosition &targetWorldPos = target->getWorldPosition();
+	const int32_t distanceX = static_cast<int32_t>(std::round(std::abs(targetWorldPos.x - playerWorldPos.x)));
+	const int32_t distanceY = static_cast<int32_t>(std::round(std::abs(targetWorldPos.y - playerWorldPos.y)));
 	int32_t damageX = player->getPerfectShotDamage(distanceX);
 	int32_t damageY = player->getPerfectShotDamage(distanceY);
 

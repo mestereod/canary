@@ -419,6 +419,12 @@ void Map::moveCreature(const std::shared_ptr<Creature> &creature, const std::sha
 	// add the creature
 	newTile->addThing(creature);
 
+	// Only reset world position to tile center if not doing continuous movement
+	// (continuous movement sets the precise float position after tile change)
+	if (!creature->isContinuousMoving()) {
+		creature->syncWorldPositionFromTile();
+	}
+
 	if (!teleport) {
 		if (oldPos.y > newPos.y) {
 			creature->setDirection(DIRECTION_NORTH);
@@ -441,6 +447,12 @@ void Map::moveCreature(const std::shared_ptr<Creature> &creature, const std::sha
 		if (stackpos != -1) {
 			const auto &player = spectator->getPlayer();
 			player->sendCreatureMove(creature, newPos, newTile->getStackposOfCreature(player, creature), oldPos, stackpos, teleport);
+			// Don't send sub-tile position here for continuous movement:
+			// worldPosition hasn't been updated yet, so the data would be stale.
+			// updateContinuousMovement() sends the corrected position after the move.
+			if (!creature->isContinuousMoving()) {
+				player->sendCreatureWorldPosition(creature);
+			}
 		}
 	}
 

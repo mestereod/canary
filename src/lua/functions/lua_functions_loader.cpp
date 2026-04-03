@@ -717,6 +717,20 @@ void Lua::pushPosition(lua_State* L, const Position &position, int32_t stackpos 
 	setMetatable(L, -1, "Position");
 }
 
+void Lua::pushWorldPosition(lua_State* L, const WorldPosition &wpos) {
+	if (validateDispatcherContext(__FUNCTION__)) {
+		return;
+	}
+
+	lua_createtable(L, 0, 3);
+
+	setField(L, "x", static_cast<double>(wpos.x));
+	setField(L, "y", static_cast<double>(wpos.y));
+	setField(L, "z", wpos.z);
+
+	setMetatable(L, -1, "WorldPosition");
+}
+
 void Lua::pushOutfit(lua_State* L, const Outfit_t &outfit) {
 	if (validateDispatcherContext(__FUNCTION__)) {
 		return;

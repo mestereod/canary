@@ -222,6 +222,10 @@ bool IOLoginDataSave::savePlayerFirst(const std::shared_ptr<Player> &player) {
 	query << "`posy` = " << loginPosition.getY() << ",";
 	query << "`posz` = " << loginPosition.getZ() << ",";
 
+	const WorldPosition &worldPos = player->getWorldPosition();
+	query << "`world_posx` = " << worldPos.x << ",";
+	query << "`world_posy` = " << worldPos.y << ",";
+
 	query << "`prey_wildcard` = " << player->getPreyCards() << ",";
 	query << "`task_points` = " << player->getTaskHuntingPoints() << ",";
 	query << "`boss_points` = " << player->getBossPoints() << ",";

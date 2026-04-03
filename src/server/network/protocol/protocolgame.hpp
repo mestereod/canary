@@ -516,6 +516,7 @@ private:
 	void sendShader(const std::shared_ptr<Creature> &creature, const std::string &shaderName);
 	void sendMapShader(const std::string &shaderName);
 	void sendPlayerTyping(const std::shared_ptr<Creature> &creature, uint8_t typing);
+	void sendCreatureWorldPosition(const std::shared_ptr<Creature> &creature);
 	void parsePlayerTyping(NetworkMessage &msg);
 	void AddOutfitCustomOTCR(NetworkMessage &msg, const Outfit_t &outfit);
 	void sendOutfitWindowCustomOTCR(NetworkMessage &msg);

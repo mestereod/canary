@@ -566,6 +566,11 @@ void Game::start(ServiceManager* manager) {
 	[[maybe_unused]] auto eventId8 = g_dispatcher().cycleEvent(
 		UPDATE_PLAYERS_ONLINE_DB, [this] { updatePlayersOnline(); }, "Game::updatePlayersOnline"
 	);
+
+	// Continuous movement tick loop
+	[[maybe_unused]] auto eventId9 = g_dispatcher().cycleEvent(
+		CONTINUOUS_MOVEMENT_INTERVAL, [this] { updateContinuousMovement(); }, "Game::updateContinuousMovement"
+	);
 }
 
 GameState_t Game::getGameState() const {
@@ -3632,6 +3637,29 @@ void Game::playerMove(uint32_t playerId, Direction direction) {
 	player->cancelPush();
 
 	player->startAutoWalk(std::vector<Direction> { direction }, false);
+}
+
+void Game::playerContinuousMove(uint32_t playerId, Direction direction) {
+	const auto &player = getPlayerByID(playerId);
+	if (!player) {
+		return;
+	}
+
+	player->resetLoginProtection();
+	player->resetIdleTime();
+	player->setNextWalkActionTask(nullptr);
+	player->cancelPush();
+
+	player->startContinuousMovement(direction);
+}
+
+void Game::playerStopContinuousMove(uint32_t playerId) {
+	const auto &player = getPlayerByID(playerId);
+	if (!player) {
+		return;
+	}
+
+	player->stopContinuousMovement();
 }
 
 void Game::forcePlayerMove(uint32_t playerId, Direction direction) {
@@ -6727,6 +6755,50 @@ void Game::checkCreatures() {
 	});
 
 	index = (index + 1) % EVENT_CREATURECOUNT;
+}
+
+void Game::updateContinuousMovement() {
+	if (continuousMovingCreatures.empty()) {
+		return;
+	}
+
+	const int64_t currentTick = OTSYS_TIME();
+
+	// Move the map out before iterating. updateContinuousMovement() can call
+	// stopContinuousMovement() → removeContinuousMovingCreature() which erases
+	// from the map. Iterating while erasing is undefined behavior and crashes.
+	// Any new creatures added during iteration go into the (now empty) real map.
+	auto snapshot = std::move(continuousMovingCreatures);
+
+	for (auto &[id, weak] : snapshot) {
+		auto creature = weak.lock();
+		if (!creature || !creature->isContinuousMoving()) {
+			continue;
+		}
+
+		creature->updateContinuousMovement(currentTick);
+	}
+
+	// Merge back creatures that are still moving.
+	// try_emplace preserves any new entries added to continuousMovingCreatures
+	// during the iteration (via startContinuousMovement from callbacks).
+	for (auto &[id, weak] : snapshot) {
+		auto creature = weak.lock();
+		if (creature && creature->isContinuousMoving()) {
+			continuousMovingCreatures.try_emplace(id, std::move(weak));
+		}
+	}
+}
+
+void Game::addContinuousMovingCreature(const std::shared_ptr<Creature> &creature) {
+	if (!creature) {
+		return;
+	}
+	continuousMovingCreatures[creature->getID()] = creature;
+}
+
+void Game::removeContinuousMovingCreature(uint32_t creatureId) {
+	continuousMovingCreatures.erase(creatureId);
 }
 
 void Game::changeSpeed(const std::shared_ptr<Creature> &creature, int32_t varSpeedDelta) {

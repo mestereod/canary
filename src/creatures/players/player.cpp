@@ -8391,6 +8391,12 @@ void Player::sendCreatureMove(const std::shared_ptr<Creature> &creature, const P
 	}
 }
 
+void Player::sendCreatureWorldPosition(const std::shared_ptr<Creature> &creature) const {
+	if (client) {
+		client->sendCreatureWorldPosition(creature);
+	}
+}
+
 void Player::sendCreatureTurn(const std::shared_ptr<Creature> &creature) {
 	if (!creature) {
 		return;

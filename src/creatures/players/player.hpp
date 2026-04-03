@@ -907,6 +907,7 @@ public:
 	void sendChannelEvent(uint16_t channelId, const std::string &playerName, ChannelEvent_t channelEvent) const;
 	void sendCreatureAppear(const std::shared_ptr<Creature> &creature, const Position &pos, bool isLogin);
 	void sendCreatureMove(const std::shared_ptr<Creature> &creature, const Position &newPos, int32_t newStackPos, const Position &oldPos, int32_t oldStackPos, bool teleport) const;
+	void sendCreatureWorldPosition(const std::shared_ptr<Creature> &creature) const;
 	void sendCreatureTurn(const std::shared_ptr<Creature> &creature);
 	void sendCreatureSay(const std::shared_ptr<Creature> &creature, SpeakClasses type, const std::string &text, const Position* pos = nullptr) const;
 	void sendCreatureReload(const std::shared_ptr<Creature> &creature) const;

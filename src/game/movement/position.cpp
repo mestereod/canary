@@ -52,3 +52,7 @@ std::ostream &operator<<(std::ostream &os, const Direction &dir) {
 
 	return os;
 }
+
+std::ostream &operator<<(std::ostream &os, const WorldPosition &wpos) {
+	return os << wpos.toString();
+}

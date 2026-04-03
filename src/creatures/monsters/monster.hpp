@@ -101,6 +101,8 @@ public:
 	bool getNextStep(Direction &direction, uint32_t &flags) override;
 	void onFollowCreatureComplete(const std::shared_ptr<Creature> &creature) override;
 
+	void goToFollowCreature() override;
+
 	void onThink(uint32_t interval) override;
 
 	bool challengeCreature(const std::shared_ptr<Creature> &creature, int targetChangeCooldown) override;
@@ -387,6 +389,8 @@ private:
 	void doWalkBack(uint32_t &flags, Direction &nextDirection, bool &result);
 	void doFollowCreature(uint32_t &flags, Direction &nextDirection, bool &result);
 	void doRandomStep(Direction &nextDirection, bool &result);
+
+	Direction computeSteeringDirection(const WorldPosition &from, const WorldPosition &to) const;
 
 	void onConditionStatusChange(ConditionType_t type);
 };

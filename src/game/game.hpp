@@ -61,6 +61,7 @@ enum class ForgeAction_t : uint8_t;
 using CreatureVector = std::vector<std::shared_ptr<Creature>>;
 
 static constexpr uint16_t SERVER_BEAT = 0x32;
+static constexpr uint16_t CONTINUOUS_MOVEMENT_INTERVAL = 20;
 static constexpr int32_t EVENT_MS = 10000;
 static constexpr int32_t EVENT_LIGHTINTERVAL_MS = 10000;
 static constexpr int32_t EVENT_DECAYINTERVAL = 250;
@@ -318,6 +319,8 @@ public:
 	void playerMoveItem(const std::shared_ptr<Player> &player, const Position &fromPos, uint16_t itemId, uint8_t fromStackPos, const Position &toPos, uint8_t count, std::shared_ptr<Item> item, std::shared_ptr<Cylinder> toCylinder);
 	void playerEquipItem(uint32_t playerId, uint16_t itemId, bool hasTier = false, uint8_t tier = 0);
 	void playerMove(uint32_t playerId, Direction direction);
+	void playerContinuousMove(uint32_t playerId, Direction direction);
+	void playerStopContinuousMove(uint32_t playerId);
 	void forcePlayerMove(uint32_t playerId, Direction direction);
 	void playerCreatePrivateChannel(uint32_t playerId);
 	void playerChannelInvite(uint32_t playerId, const std::string &name);
@@ -450,6 +453,10 @@ public:
 	// Events
 	void checkCreatures();
 	void checkLight();
+	void updateContinuousMovement();
+
+	void addContinuousMovingCreature(const std::shared_ptr<Creature> &creature);
+	void removeContinuousMovingCreature(uint32_t creatureId);
 
 	bool combatBlockHit(CombatDamage &damage, const std::shared_ptr<Creature> &attacker, const std::shared_ptr<Creature> &target, bool checkDefense, bool checkArmor, bool field, bool condition = false);
 
@@ -837,6 +844,9 @@ private:
 	std::unordered_map<uint32_t, size_t> npcsIdIndex;
 
 	std::vector<uint32_t> forgeableMonsters;
+
+	// Continuous movement tracking
+	std::unordered_map<uint32_t, std::weak_ptr<Creature>> continuousMovingCreatures;
 
 	std::map<uint32_t, std::unique_ptr<TeamFinder>> teamFinderMap; // [leaderGUID] = TeamFinder*
 

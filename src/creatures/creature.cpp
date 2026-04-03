@@ -337,6 +337,8 @@ void Creature::onCreatureAppear(const std::shared_ptr<Creature> &creature, bool 
 		if (isLogin) {
 			setLastPosition(getPosition());
 		}
+		// Initialize world position from tile position
+		syncWorldPositionFromTile();
 	}
 }
 
@@ -443,8 +445,6 @@ void Creature::onCreatureMove(const std::shared_ptr<Creature> &creature, const s
 		if (!teleport) {
 			if (oldPos.z != newPos.z) {
 				lastStepCost = WALK_FLOOR_CHANGE_EXTRA_COST;
-			} else if (Position::getDistanceX(newPos, oldPos) >= 1 && Position::getDistanceY(newPos, oldPos) >= 1) {
-				lastStepCost = WALK_DIAGONAL_EXTRA_COST;
 			}
 		} else {
 			stopEventWalk();
@@ -1476,9 +1476,7 @@ uint16_t Creature::getStepDuration(Direction dir) {
 	}
 
 	auto duration = walk.duration;
-	if ((dir & DIRECTION_DIAGONAL_MASK) != 0) {
-		duration *= WALK_DIAGONAL_EXTRA_COST;
-	} else if (const auto &monster = getMonster()) {
+	if (const auto &monster = getMonster()) {
 		if (monster->isTargetNearby() && !monster->isFleeing() && !monster->getMaster()) {
 			duration *= WALK_TARGET_NEARBY_EXTRA_COST;
 		}
@@ -1741,13 +1739,14 @@ bool Creature::getPathTo(const Position &targetPos, std::vector<Direction> &dirL
 }
 
 void Creature::turnToCreature(const std::shared_ptr<Creature> &creature) {
-	const Position &creaturePos = creature->getPosition();
-	const auto dx = Position::getOffsetX(position, creaturePos);
-	const auto dy = Position::getOffsetY(position, creaturePos);
+	const WorldPosition &myWorldPos = getWorldPosition();
+	const WorldPosition &targetWorldPos = creature->getWorldPosition();
+	const float dx = myWorldPos.x - targetWorldPos.x;
+	const float dy = myWorldPos.y - targetWorldPos.y;
 
 	float tan;
-	if (dx != 0) {
-		tan = static_cast<float>(dy) / dx;
+	if (std::abs(dx) > 0.001f) {
+		tan = dy / dx;
 	} else {
 		tan = 10;
 	}
@@ -1955,4 +1954,301 @@ void Creature::detachEffectById(uint16_t id) {
 	}
 	attachedEffectList.erase(it);
 	g_game().sendDetachEffect(static_self_cast<Creature>(), id);
+}
+
+void Creature::startContinuousMovement(Direction dir) {
+	if (dir == DIRECTION_NONE || isRemoved() || isDead()) {
+		return;
+	}
+
+	if (hasCondition(CONDITION_ROOTED) || hasCondition(CONDITION_FEARED)) {
+		return;
+	}
+
+	if (moveLocked) {
+		return;
+	}
+
+	// Stop the legacy tile walk system
+	stopEventWalk();
+	listWalkDir.clear();
+
+	continuousWalkDirection = dir;
+	if (lastContinuousMoveTick == 0) {
+		lastContinuousMoveTick = OTSYS_TIME();
+	}
+
+	if (!directionLocked) {
+		setDirection(dir);
+	}
+
+	g_game().addContinuousMovingCreature(static_self_cast<Creature>());
+}
+
+void Creature::stopContinuousMovement() {
+	continuousWalkDirection = DIRECTION_NONE;
+	lastContinuousMoveTick = 0;
+	g_game().removeContinuousMovingCreature(getID());
+}
+
+void Creature::updateContinuousMovement(int64_t currentTick) {
+	if (continuousWalkDirection == DIRECTION_NONE || isRemoved() || isDead()) {
+		stopContinuousMovement();
+		return;
+	}
+
+	if (moveLocked || hasCondition(CONDITION_ROOTED)) {
+		stopContinuousMovement();
+		return;
+	}
+
+	if (lastContinuousMoveTick == 0) {
+		lastContinuousMoveTick = currentTick;
+		return;
+	}
+
+	const int64_t deltaMs = currentTick - lastContinuousMoveTick;
+	if (deltaMs <= 0) {
+		return;
+	}
+
+	// Calculate speed: getStepDuration() gives ms per tile
+	const uint16_t stepDuration = getStepDuration(continuousWalkDirection);
+	if (stepDuration == 0) {
+		return;
+	}
+
+	// Movement distance in tiles this tick
+	// Cap at 1.0 to prevent skipping past blocking tiles during lag spikes
+	const float tilesPerMs = 1.0f / static_cast<float>(stepDuration);
+	const float distanceTiles = std::min(tilesPerMs * static_cast<float>(deltaMs), 1.0f);
+
+	// Apply diagonal factor (diagonal movement covers same per-axis distance but more total)
+	float dx = 0.0f;
+	float dy = 0.0f;
+	const bool diagonal = (continuousWalkDirection & DIRECTION_DIAGONAL_MASK) != 0;
+	const float axisDist = diagonal ? (distanceTiles * 0.7071f) : distanceTiles; // 1/sqrt(2)
+
+	switch (continuousWalkDirection) {
+		case DIRECTION_NORTH:
+			dy = -axisDist;
+			break;
+		case DIRECTION_SOUTH:
+			dy = axisDist;
+			break;
+		case DIRECTION_WEST:
+			dx = -axisDist;
+			break;
+		case DIRECTION_EAST:
+			dx = axisDist;
+			break;
+		case DIRECTION_NORTHEAST:
+			dx = axisDist;
+			dy = -axisDist;
+			break;
+		case DIRECTION_NORTHWEST:
+			dx = -axisDist;
+			dy = -axisDist;
+			break;
+		case DIRECTION_SOUTHEAST:
+			dx = axisDist;
+			dy = axisDist;
+			break;
+		case DIRECTION_SOUTHWEST:
+			dx = -axisDist;
+			dy = axisDist;
+			break;
+		default:
+			break;
+	}
+
+	WorldPosition newWorldPos = worldPosition;
+	newWorldPos.x += dx;
+	newWorldPos.y += dy;
+
+	// Check if we cross a tile boundary
+	const Position oldTilePos = worldPosition.toTilePosition();
+	const Position newTilePos = newWorldPos.toTilePosition();
+
+	if (oldTilePos != newTilePos) {
+		// For diagonal movement, check that at least one intermediate cardinal
+		// tile allows passage. Without this, creatures can clip through wall
+		// corners by moving diagonally.
+		if (diagonal) {
+			const Position intermediateX(newTilePos.x, oldTilePos.y, oldTilePos.z);
+			const Position intermediateY(oldTilePos.x, newTilePos.y, oldTilePos.z);
+
+			bool xBlocked = false;
+			bool yBlocked = false;
+
+			const auto &tileX = g_game().map.getTile(intermediateX);
+			if (!tileX || tileX->queryAdd(0, static_self_cast<Creature>(), 1, FLAG_IGNOREFIELDDAMAGE) != RETURNVALUE_NOERROR) {
+				xBlocked = true;
+			}
+
+			const auto &tileY = g_game().map.getTile(intermediateY);
+			if (!tileY || tileY->queryAdd(0, static_self_cast<Creature>(), 1, FLAG_IGNOREFIELDDAMAGE) != RETURNVALUE_NOERROR) {
+				yBlocked = true;
+			}
+
+			if (xBlocked && yBlocked) {
+				stopContinuousMovement();
+				if (const auto &player = getPlayer()) {
+					player->sendCancelWalk();
+					player->sendCreatureWorldPosition(static_self_cast<Creature>());
+				}
+				lastContinuousMoveTick = currentTick;
+				return;
+			}
+		}
+
+		// --- Height-based floor changes (stairs) ---
+		// Matches the go-up/go-down logic from Game::internalMoveCreature.
+		// Only applies to players and non-diagonal movement.
+		Position actualDestPos = newTilePos;
+		uint32_t moveFlags = FLAG_IGNOREFIELDDAMAGE;
+
+		if (const auto &cmPlayer = getPlayer(); cmPlayer && !diagonal) {
+			const auto &currentTile = getTile();
+
+			// Try go UP: current tile has height 3 and tile above destination has ground
+			if (oldTilePos.z != 8 && currentTile && currentTile->hasHeight(3)) {
+				auto tmpTile = g_game().map.getTile(oldTilePos.x, oldTilePos.y, oldTilePos.z - 1);
+				if (!tmpTile || (!tmpTile->getGround() && !tmpTile->hasFlag(TILESTATE_BLOCKSOLID))) {
+					tmpTile = g_game().map.getTile(actualDestPos.x, actualDestPos.y, actualDestPos.z - 1);
+					if (tmpTile && tmpTile->getGround() && !tmpTile->hasFlag(TILESTATE_BLOCKSOLID)) {
+						moveFlags |= FLAG_IGNOREBLOCKITEM | FLAG_IGNOREBLOCKCREATURE;
+						if (!tmpTile->hasFlag(TILESTATE_FLOORCHANGE)) {
+							cmPlayer->setDirection(continuousWalkDirection);
+							actualDestPos.z--;
+						}
+					}
+				}
+			}
+
+			// Try go DOWN: destination has no ground and tile below has height 3
+			if (oldTilePos.z != 7 && actualDestPos.z == oldTilePos.z) {
+				auto tmpTile = g_game().map.getTile(actualDestPos.x, actualDestPos.y, actualDestPos.z);
+				if (!tmpTile || (!tmpTile->getGround() && !tmpTile->hasFlag(TILESTATE_BLOCKSOLID))) {
+					tmpTile = g_game().map.getTile(actualDestPos.x, actualDestPos.y, actualDestPos.z + 1);
+					if (tmpTile && tmpTile->hasHeight(3)) {
+						moveFlags |= FLAG_IGNOREBLOCKITEM | FLAG_IGNOREBLOCKCREATURE;
+						cmPlayer->setDirection(continuousWalkDirection);
+						actualDestPos.z++;
+					}
+				}
+			}
+		}
+
+		// Validate the target tile
+		const auto &destTile = g_game().map.getTile(actualDestPos);
+		if (!destTile) {
+			// Blocked - stop at tile edge
+			stopContinuousMovement();
+			if (const auto &player = getPlayer()) {
+				player->sendCancelWalk();
+				player->sendCreatureWorldPosition(static_self_cast<Creature>());
+			}
+			lastContinuousMoveTick = currentTick;
+			return;
+		}
+
+		// Check if we can move there
+		ReturnValue ret = destTile->queryAdd(0, static_self_cast<Creature>(), 1, moveFlags);
+		if (ret != RETURNVALUE_NOERROR) {
+			// Blocked - stop at tile edge
+			stopContinuousMovement();
+			if (const auto &player = getPlayer()) {
+				player->sendCancelMessage(ret);
+				player->sendCancelWalk();
+				player->sendCreatureWorldPosition(static_self_cast<Creature>());
+			}
+			lastContinuousMoveTick = currentTick;
+			return;
+		}
+
+		// Perform the tile change
+		g_game().map.moveCreature(static_self_cast<Creature>(), destTile);
+
+		// moveCreature can fail silently (e.g. zone restrictions).
+		// Only update worldPosition if the creature actually moved.
+		if (getPosition() != actualDestPos) {
+			stopContinuousMovement();
+			if (const auto &player = getPlayer()) {
+				player->sendCancelWalk();
+				player->sendCreatureWorldPosition(static_self_cast<Creature>());
+			}
+			lastContinuousMoveTick = currentTick;
+			return;
+		}
+
+		// Handle floor change tiles (holes, ladders, stairs with FLOORCHANGE flags).
+		// This is equivalent to the queryDestination loop in Game::internalMoveCreature.
+		{
+			int32_t qIndex = 0;
+			std::shared_ptr<Item> toItem;
+			uint32_t qFlags = FLAG_NOLIMIT;
+			auto toCylinder = destTile;
+			uint32_t n = 0;
+			while (auto subCylinder = toCylinder->queryDestination(qIndex, static_self_cast<Creature>(), toItem, qFlags)->getTile()) {
+				if (subCylinder == toCylinder || !subCylinder) break;
+				g_game().map.moveCreature(static_self_cast<Creature>(), subCylinder);
+				if (getPosition() != subCylinder->getPosition()) break;
+				toCylinder = subCylinder;
+				if (++n >= MAP_MAX_LAYERS) break;
+			}
+		}
+
+		// If any floor change occurred, stop continuous movement and reset to tile center
+		if (getPosition().z != oldTilePos.z) {
+			stopContinuousMovement();
+			syncWorldPositionFromTile();
+			if (const auto &player = getPlayer()) {
+				player->sendCancelWalk();
+				player->sendCreatureWorldPosition(static_self_cast<Creature>());
+			}
+			lastContinuousMoveTick = currentTick;
+			return;
+		}
+
+		// moveCreature overwrites diagonal direction with a cardinal one.
+		// Restore the intended continuous movement direction.
+		if (!directionLocked) {
+			setDirection(continuousWalkDirection);
+		}
+
+		// Set the correct fractional position within the new tile.
+		float fracX = newWorldPos.x - std::floor(newWorldPos.x);
+		float fracY = newWorldPos.y - std::floor(newWorldPos.y);
+		worldPosition = WorldPosition(
+			static_cast<float>(newTilePos.x) + fracX,
+			static_cast<float>(newTilePos.y) + fracY,
+			newTilePos.z
+		);
+
+		// Send the corrected sub-tile position
+		Spectators spectators;
+		spectators.find<Player>(position, true, 0, 0, 0, 0, false);
+		for (const auto &spectator : spectators) {
+			const auto &player = spectator->getPlayer();
+			if (player) {
+				player->sendCreatureWorldPosition(static_self_cast<Creature>());
+			}
+		}
+	} else {
+		// Same tile, just update world position
+		worldPosition = newWorldPos;
+
+		// Broadcast sub-tile update to spectators
+		Spectators spectators;
+		spectators.find<Player>(position, true, 0, 0, 0, 0, false);
+		for (const auto &spectator : spectators) {
+			const auto &player = spectator->getPlayer();
+			if (player) {
+				player->sendCreatureWorldPosition(static_self_cast<Creature>());
+			}
+		}
+	}
+
+	lastContinuousMoveTick = currentTick;
 }

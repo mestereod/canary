@@ -1745,7 +1745,7 @@ std::vector<std::pair<Position, std::vector<uint32_t>>> Combat::pickChainTargets
 				continue;
 			}
 
-			double distance = Position::getEuclideanDistance(currentTarget->getPosition(), spectator->getPosition());
+			double distance = static_cast<double>(WorldPosition::getEuclideanDistance(currentTarget->getWorldPosition(), spectator->getWorldPosition()));
 			if (distance < closestDistance) {
 				closestDistance = distance;
 				closestSpectator = spectator;

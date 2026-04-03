@@ -241,6 +241,15 @@ void NetworkMessage::addPosition(const Position &pos) {
 	addByte(pos.z);
 }
 
+void NetworkMessage::addWorldPosition(const WorldPosition &wpos) {
+	Position tilePos = wpos.toTilePosition();
+	add<uint16_t>(tilePos.x);
+	add<uint16_t>(tilePos.y);
+	addByte(tilePos.z);
+	addByte(wpos.getSubTileX());
+	addByte(wpos.getSubTileY());
+}
+
 NetworkMessage::MsgSize_t NetworkMessage::getLength() const {
 	return info.length;
 }

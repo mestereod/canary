@@ -425,13 +425,11 @@ void Monster::onCreatureMove(const std::shared_ptr<Creature> &creature, const st
 
 			if (!isSummon()) {
 				if (const auto &followCreature = getFollowCreature()) {
-					const Position &followPosition = followCreature->getPosition();
+					const float followDist = WorldPosition::getChebyshevDistance(getWorldPosition(), followCreature->getWorldPosition());
 					const Position &pos = getPosition();
 
-					int32_t offset_x = Position::getDistanceX(followPosition, pos);
-					int32_t offset_y = Position::getDistanceY(followPosition, pos);
-					if ((offset_x > 1 || offset_y > 1) && m_monsterType->info.changeTargetChance > 0) {
-						Direction dir = getDirectionTo(pos, followPosition);
+					if (followDist > 1.5f && m_monsterType->info.changeTargetChance > 0) {
+							Direction dir = getDirectionTo(pos, followCreature->getPosition());
 						const auto &checkPosition = getNextPosition(dir, pos);
 
 						if (const auto &nextTile = g_game().map.getTile(checkPosition)) {
@@ -775,13 +773,10 @@ bool Monster::searchTarget(TargetSearchType_t searchType /*= TARGETSEARCH_DEFAUL
 				getTarget = *it;
 
 				if (++it != resultList.end()) {
-					const Position &targetPosition = getTarget->getPosition();
-					int32_t minRange = std::max<int32_t>(Position::getDistanceX(myPos, targetPosition), Position::getDistanceY(myPos, targetPosition));
-					int32_t factionOffset = static_cast<int32_t>(getTarget->getFaction()) * 100;
+					float minRange = WorldPosition::getChebyshevDistance(getWorldPosition(), getTarget->getWorldPosition());
+					float factionOffset = static_cast<float>(getTarget->getFaction()) * 100.0f;
 					do {
-						const Position &pos = (*it)->getPosition();
-
-						int32_t distance = std::max<int32_t>(Position::getDistanceX(myPos, pos), Position::getDistanceY(myPos, pos)) + factionOffset;
+						float distance = WorldPosition::getChebyshevDistance(getWorldPosition(), (*it)->getWorldPosition()) + factionOffset;
 						if (distance < minRange) {
 							getTarget = *it;
 							minRange = distance;
@@ -789,15 +784,14 @@ bool Monster::searchTarget(TargetSearchType_t searchType /*= TARGETSEARCH_DEFAUL
 					} while (++it != resultList.end());
 				}
 			} else {
-				int32_t minRange = std::numeric_limits<int32_t>::max();
+				float minRange = std::numeric_limits<float>::max();
 				for (const auto &creature : getTargetList()) {
 					if (!isTarget(creature)) {
 						continue;
 					}
 
-					const Position &pos = creature->getPosition();
-					int32_t factionOffset = static_cast<int32_t>(getTarget->getFaction()) * 100;
-					int32_t distance = std::max<int32_t>(Position::getDistanceX(myPos, pos), Position::getDistanceY(myPos, pos)) + factionOffset;
+					float factionOffset = static_cast<float>(getTarget->getFaction()) * 100.0f;
+					float distance = WorldPosition::getChebyshevDistance(getWorldPosition(), creature->getWorldPosition()) + factionOffset;
 					if (distance < minRange) {
 						getTarget = creature;
 						minRange = distance;
@@ -1093,7 +1087,10 @@ void Monster::onThink_async() {
 		return;
 	}
 
-	addEventWalk();
+	// Only use tile-based walk scheduling when NOT using continuous movement (steering)
+	if (!isContinuousMoving()) {
+		addEventWalk();
+	}
 
 	const auto &attackedCreature = getAttackedCreature();
 	const auto &followCreature = getFollowCreature();
@@ -1201,9 +1198,9 @@ bool Monster::hasExtraSwing() {
 bool Monster::canUseAttack(const Position &pos, const std::shared_ptr<Creature> &target) const {
 	if (isHostile()) {
 		const Position &targetPos = target->getPosition();
-		uint32_t distance = std::max<uint32_t>(Position::getDistanceX(pos, targetPos), Position::getDistanceY(pos, targetPos));
+		const float worldDist = WorldPosition::getChebyshevDistance(getWorldPosition(), target->getWorldPosition());
 		for (const spellBlock_t &spellBlock : attackSpells) {
-			if (spellBlock.range != 0 && distance <= spellBlock.range) {
+			if (spellBlock.range != 0 && worldDist <= static_cast<float>(spellBlock.range) + 0.5f) {
 				return g_game().isSightClear(pos, targetPos, true);
 			}
 		}
@@ -1237,9 +1234,12 @@ bool Monster::canUseSpell(const Position &pos, const Position &targetPos, const 
 		}
 	}
 
-	if (sb.range != 0 && std::max<uint32_t>(Position::getDistanceX(pos, targetPos), Position::getDistanceY(pos, targetPos)) > sb.range) {
-		inRange = false;
-		return false;
+	if (sb.range != 0) {
+		const auto &attackedCreature = getAttackedCreature();
+		if (attackedCreature && WorldPosition::getChebyshevDistance(getWorldPosition(), attackedCreature->getWorldPosition()) > static_cast<float>(sb.range) + 0.5f) {
+			inRange = false;
+			return false;
+		}
 	}
 	return true;
 }
@@ -1638,6 +1638,108 @@ void Monster::doFollowCreature(uint32_t &flags, Direction &nextDirection, bool &
 			}
 		}
 	}
+}
+
+Direction Monster::computeSteeringDirection(const WorldPosition &from, const WorldPosition &to) const {
+	const float dx = to.x - from.x;
+	const float dy = to.y - from.y;
+
+	if (std::abs(dx) < 0.01f && std::abs(dy) < 0.01f) {
+		return DIRECTION_NONE;
+	}
+
+	// atan2 returns angle in radians: 0=east, pi/2=south (y-axis is inverted in Tibia coords)
+	float angle = std::atan2(dy, dx);
+	if (angle < 0) {
+		angle += 2.0f * static_cast<float>(M_PI);
+	}
+
+	// Snap to 8 sectors (each 45 degrees = pi/4)
+	const int sector = static_cast<int>(std::round(angle / (static_cast<float>(M_PI) / 4.0f))) % 8;
+
+	switch (sector) {
+		case 0:
+			return DIRECTION_EAST;
+		case 1:
+			return DIRECTION_SOUTHEAST;
+		case 2:
+			return DIRECTION_SOUTH;
+		case 3:
+			return DIRECTION_SOUTHWEST;
+		case 4:
+			return DIRECTION_WEST;
+		case 5:
+			return DIRECTION_NORTHWEST;
+		case 6:
+			return DIRECTION_NORTH;
+		case 7:
+			return DIRECTION_NORTHEAST;
+		default:
+			return DIRECTION_NONE;
+	}
+}
+
+void Monster::goToFollowCreature() {
+	const auto &followCreature = getFollowCreature();
+	if (!followCreature) {
+		stopContinuousMovement();
+		return;
+	}
+
+	const Position &myPos = getPosition();
+	const Position &targetPos = followCreature->getPosition();
+
+	// Different floor - can't steer
+	if (myPos.z != targetPos.z) {
+		stopContinuousMovement();
+		Creature::goToFollowCreature();
+		return;
+	}
+
+	FindPathParams fpp;
+	getPathSearchParams(followCreature, fpp);
+
+	const float dist = WorldPosition::getChebyshevDistance(getWorldPosition(), followCreature->getWorldPosition());
+	const bool clearSight = g_game().isSightClear(myPos, targetPos, true);
+
+	// Fleeing: steer away from target
+	if (isFleeing()) {
+		if (clearSight || dist <= 2.0f) {
+			Direction fleeDir = computeSteeringDirection(followCreature->getWorldPosition(), getWorldPosition());
+			if (fleeDir != DIRECTION_NONE && canWalkTo(myPos, fleeDir)) {
+				startContinuousMovement(fleeDir);
+				hasFollowPath = true;
+				return;
+			}
+		}
+		// Can't flee via steering - fall back to A*
+		stopContinuousMovement();
+		Creature::goToFollowCreature();
+		return;
+	}
+
+	// If within target distance and can see the target, stop and let combat happen
+	if (dist <= static_cast<float>(fpp.maxTargetDist) + 0.3f && clearSight) {
+		stopContinuousMovement();
+		hasFollowPath = true;
+		onFollowCreatureComplete(followCreature);
+		return;
+	}
+
+	// If we can see the target, steer directly toward it
+	if (clearSight) {
+		Direction dir = computeSteeringDirection(getWorldPosition(), followCreature->getWorldPosition());
+		if (dir != DIRECTION_NONE) {
+			startContinuousMovement(dir);
+			hasFollowPath = true;
+			onFollowCreatureComplete(followCreature);
+			return;
+		}
+	}
+
+	// No clear sight or can't steer - use A* pathfinding with tile-based walking
+	stopContinuousMovement();
+	Creature::goToFollowCreature();
 }
 
 bool Monster::getRandomStep(const Position &creaturePos, Direction &moveDirection) {

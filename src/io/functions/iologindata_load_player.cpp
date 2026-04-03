@@ -167,6 +167,18 @@ bool IOLoginDataLoad::loadPlayerBasicInfo(const std::shared_ptr<Player> &player,
 	player->loginPosition.x = result->getNumber<uint16_t>("posx");
 	player->loginPosition.y = result->getNumber<uint16_t>("posy");
 	player->loginPosition.z = static_cast<uint8_t>(result->getNumber<uint16_t>("posz"));
+
+	// Load world position (float); fallback to tile center if not set
+	std::string worldXStr = result->getString("world_posx");
+	std::string worldYStr = result->getString("world_posy");
+	float worldX = worldXStr.empty() ? 0.0f : std::stof(worldXStr);
+	float worldY = worldYStr.empty() ? 0.0f : std::stof(worldYStr);
+	if (worldX > 0.0f && worldY > 0.0f) {
+		player->setWorldPosition(WorldPosition(worldX, worldY, player->loginPosition.z));
+	} else {
+		player->syncWorldPositionFromTile();
+	}
+
 	player->addPreyCards(result->getNumber<uint64_t>("prey_wildcard"));
 	player->addTaskHuntingPoints(result->getNumber<uint64_t>("task_points"));
 	player->addForgeDusts(result->getNumber<uint64_t>("forge_dusts"));

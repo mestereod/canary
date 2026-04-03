@@ -16,6 +16,7 @@ class Item;
 class Creature;
 class Player;
 struct Position;
+struct WorldPosition;
 
 class NetworkMessage {
 public:
@@ -172,6 +173,7 @@ public:
 
 	// write functions for complex types
 	void addPosition(const Position &pos);
+	void addWorldPosition(const WorldPosition &wpos);
 
 	MsgSize_t getLength() const;
 

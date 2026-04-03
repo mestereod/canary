@@ -575,6 +575,28 @@ public:
 		return position;
 	}
 
+	const WorldPosition &getWorldPosition() const {
+		return worldPosition;
+	}
+
+	void setWorldPosition(const WorldPosition &newWorldPos) {
+		worldPosition = newWorldPos;
+		// Keep tile position in sync
+		position = newWorldPos.toTilePosition();
+	}
+
+	void syncWorldPositionFromTile() {
+		worldPosition = WorldPosition(position);
+	}
+
+	// Continuous movement system
+	void startContinuousMovement(Direction dir);
+	void stopContinuousMovement();
+	void updateContinuousMovement(int64_t currentTick);
+	bool isContinuousMoving() const {
+		return continuousWalkDirection != DIRECTION_NONE;
+	}
+
 	std::shared_ptr<Tile> getTile() final {
 		return m_tile.lock();
 	}
@@ -740,6 +762,7 @@ protected:
 	}
 
 	Position position;
+	WorldPosition worldPosition;
 
 	CountMap damageMap;
 
@@ -813,6 +836,10 @@ protected:
 	bool canUseDefense = true;
 	bool moveLocked = false;
 	bool directionLocked = false;
+
+	// Continuous movement state
+	Direction continuousWalkDirection = DIRECTION_NONE;
+	int64_t lastContinuousMoveTick = 0;
 	bool hasFollowPath = false;
 	bool checkingWalkCreature = false;
 	int8_t charmChanceModifier = 0;

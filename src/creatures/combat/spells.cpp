@@ -653,10 +653,18 @@ bool Spell::playerRuneSpellCheck(const std::shared_ptr<Player> &player, const Po
 		return false;
 	}
 
-	if (range != -1 && !g_game().canThrowObjectTo(playerPos, toPos, SightLine_CheckSightLineAndFloor, range, range)) {
-		player->sendCancelMessage(RETURNVALUE_DESTINATIONOUTOFREACH);
-		g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
-		return false;
+	if (range != -1) {
+		const WorldPosition tileWorldPos(toPos);
+		if (WorldPosition::getChebyshevDistance(player->getWorldPosition(), tileWorldPos) > static_cast<float>(range) + 0.5f) {
+			player->sendCancelMessage(RETURNVALUE_DESTINATIONOUTOFREACH);
+			g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
+			return false;
+		}
+		if (!g_game().canThrowObjectTo(playerPos, toPos, SightLine_CheckSightLineAndFloor, range + 1, range + 1)) {
+			player->sendCancelMessage(RETURNVALUE_DESTINATIONOUTOFREACH);
+			g_game().addMagicEffect(player->getPosition(), CONST_ME_POFF);
+			return false;
+		}
 	}
 
 	ReturnValue ret = Combat::canDoCombat(player, tile, aggressive);
@@ -1251,9 +1259,23 @@ bool InstantSpell::canThrowSpell(const std::shared_ptr<Creature> &creature, cons
 
 	const Position &fromPos = creature->getPosition();
 	const Position &toPos = target->getPosition();
-	if (fromPos.z != toPos.z || (range == -1 && !g_game().canThrowObjectTo(fromPos, toPos, checkLineOfSight ? SightLine_CheckSightLineAndFloor : SightLine_NoCheck)) || (range != -1 && !g_game().canThrowObjectTo(fromPos, toPos, checkLineOfSight ? SightLine_CheckSightLineAndFloor : SightLine_NoCheck, range, range))) {
+	if (fromPos.z != toPos.z) {
 		return false;
 	}
+
+	if (range != -1) {
+		if (WorldPosition::getChebyshevDistance(creature->getWorldPosition(), target->getWorldPosition()) > static_cast<float>(range) + 0.5f) {
+			return false;
+		}
+		if (!g_game().canThrowObjectTo(fromPos, toPos, checkLineOfSight ? SightLine_CheckSightLineAndFloor : SightLine_NoCheck, range + 1, range + 1)) {
+			return false;
+		}
+	} else {
+		if (!g_game().canThrowObjectTo(fromPos, toPos, checkLineOfSight ? SightLine_CheckSightLineAndFloor : SightLine_NoCheck)) {
+			return false;
+		}
+	}
+
 	return true;
 }
 

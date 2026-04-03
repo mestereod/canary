@@ -116,6 +116,74 @@ struct Position {
 	}
 };
 
+struct WorldPosition {
+	constexpr WorldPosition() = default;
+	constexpr WorldPosition(float initX, float initY, uint8_t initZ) :
+		x(initX), y(initY), z(initZ) { }
+
+	explicit WorldPosition(const Position &tilePos) :
+		x(static_cast<float>(tilePos.x) + 0.5f),
+		y(static_cast<float>(tilePos.y) + 0.5f),
+		z(tilePos.z) { }
+
+	Position toTilePosition() const {
+		return Position(
+			static_cast<uint16_t>(std::floor(x)),
+			static_cast<uint16_t>(std::floor(y)),
+			z
+		);
+	}
+
+	uint8_t getSubTileX() const {
+		return static_cast<uint8_t>((x - std::floor(x)) * 255.0f);
+	}
+
+	uint8_t getSubTileY() const {
+		return static_cast<uint8_t>((y - std::floor(y)) * 255.0f);
+	}
+
+	static WorldPosition fromTileAndSubTile(const Position &tilePos, uint8_t subX, uint8_t subY) {
+		return WorldPosition(
+			static_cast<float>(tilePos.x) + static_cast<float>(subX) / 255.0f,
+			static_cast<float>(tilePos.y) + static_cast<float>(subY) / 255.0f,
+			tilePos.z
+		);
+	}
+
+	static float getEuclideanDistance(const WorldPosition &p1, const WorldPosition &p2) {
+		float dx = p1.x - p2.x;
+		float dy = p1.y - p2.y;
+		return std::sqrt(dx * dx + dy * dy);
+	}
+
+	static float getChebyshevDistance(const WorldPosition &p1, const WorldPosition &p2) {
+		return std::max(std::abs(p1.x - p2.x), std::abs(p1.y - p2.y));
+	}
+
+	bool operator==(const WorldPosition &other) const {
+		return x == other.x && y == other.y && z == other.z;
+	}
+
+	bool operator!=(const WorldPosition &other) const {
+		return !(*this == other);
+	}
+
+	std::string toString() const {
+		std::string str;
+		return str.append("( ")
+			.append(std::to_string(x))
+			.append(", ")
+			.append(std::to_string(y))
+			.append(", ")
+			.append(std::to_string(z))
+			.append(" )");
+	}
+
+	float x = 0.0f;
+	float y = 0.0f;
+	uint8_t z = 0;
+};
+
 namespace std {
 	template <>
 	struct hash<Position> {
@@ -127,6 +195,7 @@ namespace std {
 
 std::ostream &operator<<(std::ostream &, const Position &);
 std::ostream &operator<<(std::ostream &, const Direction &);
+std::ostream &operator<<(std::ostream &, const WorldPosition &);
 
 // Automatic conversion to string from Position
 template <>

@@ -135,11 +135,11 @@ struct WorldPosition {
 	}
 
 	uint8_t getSubTileX() const {
-		return static_cast<uint8_t>((x - std::floor(x)) * 255.0f);
+		return static_cast<uint8_t>(std::min(255.0f, std::round((x - std::floor(x)) * 255.0f)));
 	}
 
 	uint8_t getSubTileY() const {
-		return static_cast<uint8_t>((y - std::floor(y)) * 255.0f);
+		return static_cast<uint8_t>(std::min(255.0f, std::round((y - std::floor(y)) * 255.0f)));
 	}
 
 	static WorldPosition fromTileAndSubTile(const Position &tilePos, uint8_t subX, uint8_t subY) {

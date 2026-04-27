@@ -1010,7 +1010,7 @@ public:
 	void sendPartyCreatureShowStatus(const std::shared_ptr<Creature> &creature, bool showStatus) const;
 	void sendPartyPlayerVocation(const std::shared_ptr<Player> &player) const;
 	void sendPlayerVocation(const std::shared_ptr<Player> &player) const;
-	void sendDistanceShoot(const Position &from, const Position &to, uint16_t type) const;
+	void sendDistanceShoot(const Position &from, const Position &to, uint16_t type, uint8_t fromSubTileX = 128, uint8_t fromSubTileY = 128, uint8_t toSubTileX = 128, uint8_t toSubTileY = 128) const;
 	void sendHouseWindow(const std::shared_ptr<House> &house, uint32_t listId) const;
 	void sendCreatePrivateChannel(uint16_t channelId, const std::string &channelName) const;
 	void sendClosePrivate(uint16_t channelId);
@@ -1020,7 +1020,7 @@ public:
 	void removeBakragoreIcon(const IconBakragore icon);
 	void sendClientCheck() const;
 	void sendGameNews() const;
-	void sendMagicEffect(const Position &pos, uint16_t type) const;
+	void sendMagicEffect(const Position &pos, uint16_t type, uint8_t subTileX = 128, uint8_t subTileY = 128) const;
 	void removeMagicEffect(const Position &pos, uint16_t type) const;
 	void sendPing();
 	void sendPingBack() const;

@@ -8396,15 +8396,15 @@ void Game::addPlayerVocation(const std::shared_ptr<Player> &target) {
 	}
 }
 
-void Game::addMagicEffect(const Position &pos, uint16_t effect) {
+void Game::addMagicEffect(const Position &pos, uint16_t effect, uint8_t subTileX, uint8_t subTileY) {
 	auto spectators = Spectators().find<Player>(pos, true);
-	addMagicEffect(spectators.data(), pos, effect);
+	addMagicEffect(spectators.data(), pos, effect, subTileX, subTileY);
 }
 
-void Game::addMagicEffect(const CreatureVector &spectators, const Position &pos, uint16_t effect) {
+void Game::addMagicEffect(const CreatureVector &spectators, const Position &pos, uint16_t effect, uint8_t subTileX, uint8_t subTileY) {
 	for (const auto &spectator : spectators) {
 		if (const auto &tmpPlayer = spectator->getPlayer()) {
-			tmpPlayer->sendMagicEffect(pos, effect);
+			tmpPlayer->sendMagicEffect(pos, effect, subTileX, subTileY);
 		}
 	}
 }
@@ -8422,15 +8422,15 @@ void Game::removeMagicEffect(const CreatureVector &spectators, const Position &p
 	}
 }
 
-void Game::addDistanceEffect(const Position &fromPos, const Position &toPos, uint16_t effect) {
+void Game::addDistanceEffect(const Position &fromPos, const Position &toPos, uint16_t effect, uint8_t fromSubTileX, uint8_t fromSubTileY, uint8_t toSubTileX, uint8_t toSubTileY) {
 	auto spectators = Spectators().find<Player>(fromPos).find<Player>(toPos);
-	addDistanceEffect(spectators.data(), fromPos, toPos, effect);
+	addDistanceEffect(spectators.data(), fromPos, toPos, effect, fromSubTileX, fromSubTileY, toSubTileX, toSubTileY);
 }
 
-void Game::addDistanceEffect(const CreatureVector &spectators, const Position &fromPos, const Position &toPos, uint16_t effect) {
+void Game::addDistanceEffect(const CreatureVector &spectators, const Position &fromPos, const Position &toPos, uint16_t effect, uint8_t fromSubTileX, uint8_t fromSubTileY, uint8_t toSubTileX, uint8_t toSubTileY) {
 	for (const auto &spectator : spectators) {
 		if (const auto &tmpPlayer = spectator->getPlayer()) {
-			tmpPlayer->sendDistanceShoot(fromPos, toPos, effect);
+			tmpPlayer->sendDistanceShoot(fromPos, toPos, effect, fromSubTileX, fromSubTileY, toSubTileX, toSubTileY);
 		}
 	}
 }

@@ -493,12 +493,12 @@ public:
 	static void addCreatureHealth(const CreatureVector &spectators, const std::shared_ptr<Creature> &target);
 	void addPlayerMana(const std::shared_ptr<Player> &target);
 	void addPlayerVocation(const std::shared_ptr<Player> &target);
-	void addMagicEffect(const Position &pos, uint16_t effect);
-	static void addMagicEffect(const CreatureVector &spectators, const Position &pos, uint16_t effect);
+	void addMagicEffect(const Position &pos, uint16_t effect, uint8_t subTileX = 128, uint8_t subTileY = 128);
+	static void addMagicEffect(const CreatureVector &spectators, const Position &pos, uint16_t effect, uint8_t subTileX = 128, uint8_t subTileY = 128);
 	void removeMagicEffect(const Position &pos, uint16_t effect);
 	static void removeMagicEffect(const CreatureVector &spectators, const Position &pos, uint16_t effect);
-	void addDistanceEffect(const Position &fromPos, const Position &toPos, uint16_t effect);
-	static void addDistanceEffect(const CreatureVector &spectators, const Position &fromPos, const Position &toPos, uint16_t effect);
+	void addDistanceEffect(const Position &fromPos, const Position &toPos, uint16_t effect, uint8_t fromSubTileX = 128, uint8_t fromSubTileY = 128, uint8_t toSubTileX = 128, uint8_t toSubTileY = 128);
+	static void addDistanceEffect(const CreatureVector &spectators, const Position &fromPos, const Position &toPos, uint16_t effect, uint8_t fromSubTileX = 128, uint8_t fromSubTileY = 128, uint8_t toSubTileX = 128, uint8_t toSubTileY = 128);
 
 	int32_t getLightHour() const {
 		return lightHour;

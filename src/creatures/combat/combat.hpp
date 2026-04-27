@@ -209,7 +209,7 @@ public:
 	static ReturnValue canDoCombat(const std::shared_ptr<Creature> &attacker, const std::shared_ptr<Creature> &target, bool aggressive);
 	static void postCombatEffects(const std::shared_ptr<Creature> &caster, const Position &origin, const Position &pos, const CombatParams &params);
 
-	static void addDistanceEffect(const std::shared_ptr<Creature> &caster, const Position &fromPos, const Position &toPos, uint16_t effect);
+	static void addDistanceEffect(const std::shared_ptr<Creature> &caster, const Position &fromPos, const Position &toPos, uint16_t effect, const std::shared_ptr<Creature> &target = nullptr);
 
 	bool doCombat(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target) const;
 	bool doCombat(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, const Position &origin, int affected = 1) const;
@@ -325,8 +325,9 @@ private:
 	 * @param caster The creature casting the effect (can be null).
 	 * @param position The position where the effect will be shown.
 	 * @param effect The base effect to be displayed.
+	 * @param target The target creature (optional, used for sub-tile precision).
 	 */
-	static void sendCombatEffect(const std::shared_ptr<Creature> &caster, const Position &position, uint16_t effect);
+	static void sendCombatEffect(const std::shared_ptr<Creature> &caster, const Position &position, uint16_t effect, const std::shared_ptr<Creature> &target = nullptr);
 
 	static void combatTileEffects(const CreatureVector &spectators, const std::shared_ptr<Creature> &caster, const std::shared_ptr<Tile> &tile, const CombatParams &params);
 

@@ -282,13 +282,24 @@ void Creature::startAutoWalk(const std::vector<Direction> &listDir, bool ignoreC
 		return;
 	}
 
-	listWalkDir = { listDir.begin(), listDir.end() };
-
-	if (listWalkDir.empty()) {
+	if (listDir.empty()) {
 		return;
 	}
 
-	addEventWalk(listWalkDir.size() == 1);
+	// Path is consumed from back (back = first step).
+	// Extract the first step and store the remaining path.
+	Direction firstDir = listDir.back();
+	std::vector<Direction> remainingPath(listDir.begin(), listDir.end() - 1);
+
+	onWalk(firstDir);
+
+	if (!isContinuousMoving()) {
+		syncWorldPositionFromTile();
+	}
+
+	// startContinuousMovement clears listWalkDir, so we restore after.
+	startContinuousMovement(firstDir);
+	listWalkDir = std::move(remainingPath);
 }
 
 void Creature::addEventWalk(bool firstStep) {
@@ -2225,6 +2236,31 @@ void Creature::updateContinuousMovement(int64_t currentTick) {
 			static_cast<float>(newTilePos.y) + fracY,
 			newTilePos.z
 		);
+
+		// Path following: consume next direction from the walk path
+		if (!listWalkDir.empty()) {
+			Direction nextDir = listWalkDir.back();
+			listWalkDir.pop_back();
+			onWalk(nextDir);
+
+			if (nextDir != continuousWalkDirection) {
+				// Direction change: snap to tile center for clean turning
+				worldPosition = WorldPosition(
+					static_cast<float>(newTilePos.x) + 0.5f,
+					static_cast<float>(newTilePos.y) + 0.5f,
+					newTilePos.z
+				);
+			}
+			continuousWalkDirection = nextDir;
+			if (!directionLocked) {
+				setDirection(nextDir);
+			}
+		} else if (!getPlayer()) {
+			// Path exhausted for non-player creatures: stop and sync
+			stopContinuousMovement();
+			syncWorldPositionFromTile();
+			onWalkComplete();
+		}
 
 		// Send the corrected sub-tile position
 		Spectators spectators;

@@ -649,7 +649,11 @@ void Npc::onThinkWalk(uint32_t interval) {
 	// If talking, no walking
 	if (!playerInteractions.empty()) {
 		walkTicks = 0;
-		eventWalk = 0;
+		return;
+	}
+
+	// Don't start a new step while already moving
+	if (isContinuousMoving()) {
 		return;
 	}
 
@@ -659,9 +663,10 @@ void Npc::onThinkWalk(uint32_t interval) {
 	}
 
 	if (Direction newDirection;
-	    getRandomStep(newDirection)) {
-		listWalkDir.emplace_back(newDirection);
-		addEventWalk();
+			getRandomStep(newDirection)) {
+		syncWorldPositionFromTile();
+		startContinuousMovement(newDirection);
+		// listWalkDir is empty, so movement stops after one tile crossing
 	}
 
 	walkTicks = 0;

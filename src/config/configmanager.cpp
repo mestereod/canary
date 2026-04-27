@@ -535,6 +535,7 @@ void ConfigManager::loadLuaOTCFeatures(lua_State* L) {
 		enabledFeaturesOTC.push_back(102);
 		enabledFeaturesOTC.push_back(103);
 		enabledFeaturesOTC.push_back(118);
+		enabledFeaturesOTC.push_back(131);
 		lua_pop(L, 1);
 		return;
 	}

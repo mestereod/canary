@@ -2083,9 +2083,9 @@ void Player::sendPlayerVocation(const std::shared_ptr<Player> &player) const {
 	}
 }
 
-void Player::sendDistanceShoot(const Position &from, const Position &to, uint16_t type) const {
+void Player::sendDistanceShoot(const Position &from, const Position &to, uint16_t type, uint8_t fromSubTileX, uint8_t fromSubTileY, uint8_t toSubTileX, uint8_t toSubTileY) const {
 	if (client) {
-		client->sendDistanceShoot(from, to, type);
+		client->sendDistanceShoot(from, to, type, fromSubTileX, fromSubTileY, toSubTileX, toSubTileY);
 	}
 }
 
@@ -2178,9 +2178,9 @@ void Player::sendGameNews() const {
 	}
 }
 
-void Player::sendMagicEffect(const Position &pos, uint16_t type) const {
+void Player::sendMagicEffect(const Position &pos, uint16_t type, uint8_t subTileX, uint8_t subTileY) const {
 	if (client) {
-		client->sendMagicEffect(pos, type);
+		client->sendMagicEffect(pos, type, subTileX, subTileY);
 	}
 }
 

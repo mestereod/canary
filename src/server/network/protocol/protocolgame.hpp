@@ -312,8 +312,8 @@ private:
 	void sendBosstiaryEntryChanged(uint32_t bossid);
 
 	void sendAllowBugReport();
-	void sendDistanceShoot(const Position &from, const Position &to, uint16_t type);
-	void sendMagicEffect(const Position &pos, uint16_t type);
+	void sendDistanceShoot(const Position &from, const Position &to, uint16_t type, uint8_t fromSubTileX = 128, uint8_t fromSubTileY = 128, uint8_t toSubTileX = 128, uint8_t toSubTileY = 128);
+	void sendMagicEffect(const Position &pos, uint16_t type, uint8_t subTileX = 128, uint8_t subTileY = 128);
 	void removeMagicEffect(const Position &pos, uint16_t type);
 	void sendRestingStatus(uint8_t protection);
 	void sendCreatureHealth(const std::shared_ptr<Creature> &creature);

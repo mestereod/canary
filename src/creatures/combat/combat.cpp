@@ -1015,12 +1015,20 @@ uint16_t Combat::monkEffectByElementalBond(CombatType_t combatType, uint16_t eff
 	}
 }
 
-void Combat::sendCombatEffect(const std::shared_ptr<Creature> &caster, const Position &position, uint16_t effect) {
+void Combat::sendCombatEffect(const std::shared_ptr<Creature> &caster, const Position &position, uint16_t effect, const std::shared_ptr<Creature> &target) {
 	const auto &casterPlayer = caster ? caster->getPlayer() : nullptr;
+
+	// Extract sub-tile from target creature if available
+	uint8_t subTileX = 128;
+	uint8_t subTileY = 128;
+	if (target) {
+		subTileX = target->getWorldPosition().getSubTileX();
+		subTileY = target->getWorldPosition().getSubTileY();
+	}
 
 	// If not a Monk player, use the original effect
 	if (!casterPlayer || casterPlayer->getPlayerVocationEnum() != VOCATION_MONK_CIP) {
-		g_game().addMagicEffect(position, effect);
+		g_game().addMagicEffect(position, effect, subTileX, subTileY);
 		return;
 	}
 
@@ -1030,7 +1038,7 @@ void Combat::sendCombatEffect(const std::shared_ptr<Creature> &caster, const Pos
 		effect = monkEffectByElementalBond(it.elementalBond, effect);
 	}
 
-	g_game().addMagicEffect(position, effect);
+	g_game().addMagicEffect(position, effect, subTileX, subTileY);
 }
 
 void Combat::combatTileEffects(const CreatureVector &spectators, const std::shared_ptr<Creature> &caster, const std::shared_ptr<Tile> &tile, const CombatParams &params) {
@@ -1134,7 +1142,7 @@ void Combat::postCombatEffects(const std::shared_ptr<Creature> &caster, const Po
 	}
 }
 
-void Combat::addDistanceEffect(const std::shared_ptr<Creature> &caster, const Position &fromPos, const Position &toPos, uint16_t effect) {
+void Combat::addDistanceEffect(const std::shared_ptr<Creature> &caster, const Position &fromPos, const Position &toPos, uint16_t effect, const std::shared_ptr<Creature> &target) {
 	if (effect == CONST_ANI_WEAPONTYPE) {
 		if (!caster) {
 			return;
@@ -1173,7 +1181,17 @@ void Combat::addDistanceEffect(const std::shared_ptr<Creature> &caster, const Po
 	}
 
 	if (effect != CONST_ANI_NONE) {
-		g_game().addDistanceEffect(fromPos, toPos, effect);
+		uint8_t fromSubTileX = 128, fromSubTileY = 128;
+		uint8_t toSubTileX = 128, toSubTileY = 128;
+		if (caster) {
+			fromSubTileX = caster->getWorldPosition().getSubTileX();
+			fromSubTileY = caster->getWorldPosition().getSubTileY();
+		}
+		if (target) {
+			toSubTileX = target->getWorldPosition().getSubTileX();
+			toSubTileY = target->getWorldPosition().getSubTileY();
+		}
+		g_game().addDistanceEffect(fromPos, toPos, effect, fromSubTileX, fromSubTileY, toSubTileX, toSubTileY);
 	}
 }
 
@@ -1506,9 +1524,9 @@ void Combat::doCombatHealth(const std::shared_ptr<Creature> &caster, const std::
 void Combat::doCombatHealth(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, const Position &origin, CombatDamage &damage, const CombatParams &params) {
 	bool canCombat = !params.aggressive || (caster != target && Combat::canDoCombat(caster, target, params.aggressive) == RETURNVALUE_NOERROR);
 	if ((caster && target)
-	    && (caster == target || canCombat)
-	    && (params.impactEffect != CONST_ME_NONE)) {
-		Combat::sendCombatEffect(caster, target->getPosition(), params.impactEffect);
+			&& (caster == target || canCombat)
+			&& (params.impactEffect != CONST_ME_NONE)) {
+		Combat::sendCombatEffect(caster, target->getPosition(), params.impactEffect, target);
 	}
 
 	if (target && params.combatType == COMBAT_HEALING) {
@@ -1547,7 +1565,7 @@ void Combat::doCombatHealth(const std::shared_ptr<Creature> &caster, const std::
 
 	if (canCombat) {
 		if (target && caster && params.distanceEffect != CONST_ANI_NONE) {
-			addDistanceEffect(caster, origin, target->getPosition(), params.distanceEffect);
+			addDistanceEffect(caster, origin, target->getPosition(), params.distanceEffect, target);
 		}
 
 		CombatHealthFunc(caster, target, params, &damage);
@@ -1575,9 +1593,9 @@ void Combat::doCombatMana(const std::shared_ptr<Creature> &caster, const std::sh
 void Combat::doCombatMana(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, const Position &origin, CombatDamage &damage, const CombatParams &params) {
 	bool canCombat = !params.aggressive || (caster != target && Combat::canDoCombat(caster, target, params.aggressive) == RETURNVALUE_NOERROR);
 	if ((caster && target)
-	    && (caster == target || canCombat)
-	    && (params.impactEffect != CONST_ME_NONE)) {
-		Combat::sendCombatEffect(caster, target->getPosition(), params.impactEffect);
+			&& (caster == target || canCombat)
+			&& (params.impactEffect != CONST_ME_NONE)) {
+		Combat::sendCombatEffect(caster, target->getPosition(), params.impactEffect, target);
 	}
 
 	std::vector<std::shared_ptr<Creature>> affectedTargets;
@@ -1586,7 +1604,7 @@ void Combat::doCombatMana(const std::shared_ptr<Creature> &caster, const std::sh
 
 	if (canCombat) {
 		if (caster && target && params.distanceEffect != CONST_ANI_NONE) {
-			addDistanceEffect(caster, origin, target->getPosition(), params.distanceEffect);
+			addDistanceEffect(caster, origin, target->getPosition(), params.distanceEffect, target);
 		}
 
 		CombatManaFunc(caster, target, params, &damage);
@@ -1615,12 +1633,12 @@ void Combat::doCombatCondition(const std::shared_ptr<Creature> &caster, const Po
 void Combat::doCombatCondition(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, const CombatParams &params) {
 	bool canCombat = !params.aggressive || (caster != target && Combat::canDoCombat(caster, target, params.aggressive) == RETURNVALUE_NOERROR);
 	if ((caster == target || canCombat) && params.impactEffect != CONST_ME_NONE) {
-		Combat::sendCombatEffect(caster, target->getPosition(), params.impactEffect);
+		Combat::sendCombatEffect(caster, target->getPosition(), params.impactEffect, target);
 	}
 
 	if (canCombat) {
 		if (caster && target && params.distanceEffect != CONST_ANI_NONE) {
-			addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect);
+			addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect, target);
 		}
 
 		CombatConditionFunc(caster, target, params, nullptr);
@@ -1644,9 +1662,9 @@ void Combat::doCombatDispel(const std::shared_ptr<Creature> &caster, const Posit
 void Combat::doCombatDispel(const std::shared_ptr<Creature> &caster, const std::shared_ptr<Creature> &target, const CombatParams &params) {
 	bool canCombat = !params.aggressive || (caster != target && Combat::canDoCombat(caster, target, params.aggressive) == RETURNVALUE_NOERROR);
 	if ((caster && target)
-	    && (caster == target || canCombat)
-	    && (params.impactEffect != CONST_ME_NONE)) {
-		Combat::sendCombatEffect(caster, target->getPosition(), params.impactEffect);
+			&& (caster == target || canCombat)
+			&& (params.impactEffect != CONST_ME_NONE)) {
+		Combat::sendCombatEffect(caster, target->getPosition(), params.impactEffect, target);
 	}
 
 	if (canCombat) {
@@ -1656,7 +1674,7 @@ void Combat::doCombatDispel(const std::shared_ptr<Creature> &caster, const std::
 		}
 
 		if (target && caster && params.distanceEffect != CONST_ANI_NONE) {
-			addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect);
+			addDistanceEffect(caster, caster->getPosition(), target->getPosition(), params.distanceEffect, target);
 		}
 
 		if (target && params.soundImpactEffect != SoundEffect_t::SILENCE) {
@@ -1689,7 +1707,7 @@ void Combat::doCombatDefault(const std::shared_ptr<Creature> &caster, const std:
 		*/
 
 		if (caster && params.distanceEffect != CONST_ANI_NONE) {
-			addDistanceEffect(caster, origin, target->getPosition(), params.distanceEffect);
+			addDistanceEffect(caster, origin, target->getPosition(), params.distanceEffect, target);
 		}
 
 		if (params.soundImpactEffect != SoundEffect_t::SILENCE) {
